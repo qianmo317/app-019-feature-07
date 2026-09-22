@@ -1,0 +1,14 @@
+node_modules/
+dist/
+.env*
+*.log
+coverage/
+.DS_Store
+.vscode/
+.idea/
+design-src/
+exports/
+*.pdf
+test-results/
+playwright-report/
+.playwright-browsers/
