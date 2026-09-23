@@ -156,4 +156,39 @@ test.describe('全流程：选类型 → 填尺寸 → 出三视图 → 打印 1
     await expect(page.getByTestId('library-page')).toBeVisible()
     await expect(page.getByTestId('knowledge-card')).toHaveCount(7)
   })
+
+  test('一个方案挂多个榫卯：增加榫卯 → 切换 → 打印页逐段出图', async ({ page }) => {
+    await goto(page, '/#/new')
+    await page.getByTestId('kind-panel-glue').click()
+    await page.getByTestId('create-plan').click()
+    await expect(page.getByTestId('editor-page')).toBeVisible()
+    await expect(page.getByTestId('current-joint-head')).toContainText('拼板')
+
+    // 增加一个燕尾榫（作用于默认零件），左侧出现第二个榫卯
+    await page.getByTestId('add-joint-toggle').click()
+    await page.getByTestId('add-joint-dovetail').click()
+    await expect(page.getByTestId('joint-tab-1')).toBeVisible()
+
+    // 切到燕尾：中间只画它，出齿宽表；右侧两组切割步骤
+    await page.getByTestId('joint-select-1').click()
+    await expect(page.getByTestId('current-joint-head')).toContainText('燕尾榫')
+    await expect(page.getByTestId('tooth-table')).toBeVisible()
+    await expect(page.getByTestId('cut-group-0')).toContainText('拼板')
+    await expect(page.getByTestId('cut-group-1')).toContainText('燕尾榫')
+
+    // 保存 → 列表认出两种榫卯
+    await page.getByTestId('save-plan').click()
+    await page.getByTestId('nav-home').click()
+    const card = page.getByTestId('plan-card').first()
+    await expect(card).toContainText('拼板')
+    await expect(card).toContainText('燕尾榫')
+    await expect(card).toContainText('2 个榫卯')
+
+    // 打印页：按榫卯逐段出图，燕尾段带齿号表
+    await page.getByTestId('plan-card').first().click()
+    await page.getByTestId('go-print').click()
+    await expect(page.getByTestId('print-joint-0')).toBeVisible()
+    await expect(page.getByTestId('print-joint-1')).toBeVisible()
+    await expect(page.getByTestId('print-joint-1')).toContainText('齿号')
+  })
 })

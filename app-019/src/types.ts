@@ -37,18 +37,22 @@ export interface Params {
 }
 
 export interface Joint {
+  id: string
   kind: JointKind
   params: Params
+  partAId: string // 齿板/榫舌板（A）零件
+  partBId: string // 销板/榫孔板（B）零件
   notes: string[]
 }
 
 export interface Part {
   id: string
   name: string
-  w: number
-  h: number
-  qty: number
-  jointIds: string[]
+  length: number    // 长 mm（料长）
+  width: number     // 宽 mm（拼接端板宽）
+  thickness: number // 厚 mm
+  qty: number       // 数量
+  jointIds: string[] // 该零件参与的榫卯（由 joints 的 partAId/partBId 反算）
 }
 
 export type Scale = '1:1' | '1:2' | '1:5'

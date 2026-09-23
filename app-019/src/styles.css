@@ -128,6 +128,52 @@ input[type="number"] { width: 90px; text-align: right; }
 .cautions { padding-left: 20px; color: #666; }
 .col-steps h2, .col-params h2 { margin-top: 16px; }
 
+/* 零件编辑 */
+.parts-editor .part-card {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+  padding: 8px 10px; margin-bottom: 8px;
+}
+.part-name { width: 100%; }
+.part-fields { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin: 6px 0; }
+.part-fields .field { margin: 2px 0; }
+.part-fields input { width: 100%; }
+
+/* 榫卯列表 */
+.joint-list { display: flex; flex-direction: column; gap: 6px; }
+.joint-tab {
+  display: flex; align-items: stretch; gap: 4px;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--panel);
+  overflow: hidden;
+}
+.joint-tab.active { border-color: var(--ink); outline: 2px solid var(--ink); }
+.joint-tab-main {
+  flex: 1; text-align: left; background: none; border: none; cursor: pointer; color: var(--ink);
+  padding: 6px 10px; display: flex; flex-direction: column; gap: 2px;
+}
+.joint-tab-main strong { font-size: 13px; }
+.joint-tab-main span { color: #666; font-size: 11px; }
+.joint-tab-del { align-self: center; margin-right: 6px; }
+.add-joint { margin-top: 8px; }
+.add-joint summary { display: inline-block; cursor: pointer; }
+.add-joint-list { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
+.add-joint-list .btn { text-align: left; }
+
+.active-joint { margin-top: 8px; border-top: 2px solid var(--line); padding-top: 4px; }
+.current-joint-head {
+  background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
+  padding: 6px 10px; margin-bottom: 10px; font-size: 13px;
+}
+
+/* 右侧切割步骤分组 */
+.cut-group {
+  border: 1px solid var(--line); border-radius: 8px; background: var(--panel);
+  padding: 8px 10px; margin-bottom: 10px;
+}
+.cut-group.active { border-color: var(--ink); }
+.cut-group h3 { margin: 2px 0 4px; font-size: 13px; display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.cut-group h4 { margin: 8px 0 2px; font-size: 12px; color: #444; }
+.cut-group-jump { flex-shrink: 0; }
+
 .knowledge-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
 .knowledge-card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px 16px; }
 .knowledge-card h2 { margin-top: 0; }
@@ -137,6 +183,7 @@ input[type="number"] { width: 90px; text-align: right; }
 .print-page { max-width: 210mm; }
 .print-toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
 .print-section { page-break-inside: avoid; break-inside: avoid; margin-bottom: 24px; }
+.print-joint { page-break-before: always; break-before: page; padding-top: 4px; }
 .print-view-block { display: flex; justify-content: center; }
 .ruler-wrap { text-align: center; }
 

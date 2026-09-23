@@ -57,10 +57,14 @@ export function ParamForm({
   kind,
   params,
   onChange,
+  labelA,
+  labelB,
 }: {
   kind: JointKind
   params: Params
   onChange: (p: Params) => void
+  labelA?: string
+  labelB?: string
 }) {
   const set = (patch: Partial<Params>) => onChange({ ...params, ...patch })
   const setA = (patch: Partial<Params['boardA']>) => set({ boardA: { ...params.boardA, ...patch } })
@@ -84,7 +88,7 @@ export function ParamForm({
   return (
     <div className="param-form">
       <fieldset>
-        <legend>件 A（齿板 / 榫舌板）</legend>
+        <legend>{labelA ?? '件 A（齿板 / 榫舌板）'}</legend>
         <NumField
           label="厚度 mm"
           testid="a-thickness"
@@ -104,7 +108,7 @@ export function ParamForm({
       </fieldset>
 
       <fieldset>
-        <legend>件 B（销板 / 榫孔板）</legend>
+        <legend>{labelB ?? '件 B（销板 / 榫孔板）'}</legend>
         <NumField
           label="厚度 mm"
           testid="b-thickness"

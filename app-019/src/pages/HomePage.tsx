@@ -1,10 +1,18 @@
-// 方案列表：按「榫卯类型 + 木料厚度」筛选，支持导入
+// 方案列表：按「榫卯类型 + 木料厚度」筛选（识别方案内全部榫卯），支持导入
 import { useMemo, useState } from 'react'
 import type { Drawing, JointKind } from '../types'
 import { JOINT_KINDS, KIND_LABEL } from '../types'
-import { deletePlan, filterPlans, importJSON, upsertPlan } from '../store/plans'
+import { deletePlan, filterPlans, importJSON, loadPlans, planKinds, planThicknesses, upsertPlan } from '../store/plans'
 import { navigate } from '../router'
 import { fmtDrawing } from '../lib/format'
+
+function planSummary(p: Drawing): string {
+  const kinds = planKinds(p).map((k) => KIND_LABEL[k])
+  const dims = p.joints.map(
+    (j) => `${fmtDrawing(j.params.boardA.thickness)}×${fmtDrawing(j.params.boardA.width)}`,
+  )
+  return `${kinds.join(' / ')} · ${dims.join(' / ')}mm · ${p.joints.length} 个榫卯`
+}
 
 export function HomePage({ onImported }: { onImported: (p: Drawing) => void }) {
   const [version, setVersion] = useState(0)
@@ -12,24 +20,17 @@ export function HomePage({ onImported }: { onImported: (p: Drawing) => void }) {
   const [thickness, setThickness] = useState<number | 'all'>('all')
   const [error, setError] = useState('')
 
-  const plans = useMemo(() => {
+  const all = useMemo(() => {
     void version
-    try {
-      return filterPlans(JSON.parse(localStorage.getItem('wjb.plans.v1') ?? '[]') as Drawing[], kind, thickness)
-    } catch {
-      return []
-    }
-  }, [kind, thickness, version])
-
-  const allThicknesses = useMemo(() => {
-    void version
-    try {
-      const all = JSON.parse(localStorage.getItem('wjb.plans.v1') ?? '[]') as Drawing[]
-      return [...new Set(all.map((p) => p.joints[0]?.params.boardA.thickness))].filter((t): t is number => !!t).sort((a, b) => a - b)
-    } catch {
-      return []
-    }
+    return loadPlans()
   }, [version])
+
+  const plans = useMemo(() => filterPlans(all, kind, thickness), [all, kind, thickness])
+
+  const allThicknesses = useMemo(
+    () => [...new Set(all.flatMap((p) => planThicknesses(p)))].sort((a, b) => a - b),
+    [all],
+  )
 
   const onFile = (file: File) => {
     const reader = new FileReader()
@@ -108,9 +109,8 @@ export function HomePage({ onImported }: { onImported: (p: Drawing) => void }) {
           <li key={p.id} className="plan-card" data-testid="plan-card">
             <button className="plan-open" onClick={() => navigate(`/plan/${p.id}`)}>
               <strong>{p.title}</strong>
-              <span className="plan-meta">
-                {KIND_LABEL[p.joints[0]?.kind ?? 'dovetail']} · A {fmtDrawing(p.joints[0]?.params.boardA.thickness ?? 0)}×
-                {fmtDrawing(p.joints[0]?.params.boardA.width ?? 0)}mm
+              <span className="plan-meta" data-testid={`plan-meta-${p.id}`}>
+                {planSummary(p)}
               </span>
             </button>
             <button
