@@ -151,6 +151,53 @@ test.describe('全流程：选类型 → 填尺寸 → 出三视图 → 打印 1
     }
   })
 
+  test('一个方案挂多个榫卯（面板拼板 + 框架直榫 + 抽屉燕尾）：列表/编辑器/打印都认全', async ({ page }) => {
+    await goto(page, '/#/new')
+    await page.getByTestId('kind-panel-glue').click()
+    await page.getByTestId('create-plan').click()
+    await expect(page.getByTestId('editor-page')).toBeVisible()
+
+    // 追加第二个：直榫，并把两个零件挂上
+    await page.getByTestId('add-joint-kind').selectOption('mortise-tenon')
+    await page.getByTestId('add-joint').click()
+    await expect(page.getByTestId('tn-ratio')).toBeVisible()
+    const partAId = await page.locator('table.parts-table tbody tr').first().getAttribute('data-testid')
+    const partBId = await page.locator('table.parts-table tbody tr').nth(1).getAttribute('data-testid')
+    await page.getByTestId('part-a').selectOption(partAId!.replace('part-row-', ''))
+    await page.getByTestId('part-b').selectOption(partBId!.replace('part-row-', ''))
+
+    // 追加第三个：燕尾
+    await page.getByTestId('add-joint-kind').selectOption('dovetail')
+    await page.getByTestId('add-joint').click()
+    await expect(page.getByTestId('tooth-table')).toBeVisible()
+
+    // 左侧三个榫卯、右侧三组切割步骤
+    await expect(page.locator('[data-testid^="joint-tab-"]')).toHaveCount(3)
+    await expect(page.locator('[data-testid^="cut-group-"]')).toHaveCount(3)
+
+    // 切回第一个（拼板）：齿表消失
+    await page.locator('[data-testid^="joint-tab-"]').first().click()
+    await expect(page.getByTestId('tooth-table')).toBeHidden()
+
+    await page.getByTestId('save-plan').click()
+    await page.getByTestId('nav-home').click()
+    // 卡片列出三种类型
+    const card = page.getByTestId('plan-card').first()
+    await expect(card).toContainText('拼板')
+    await expect(card).toContainText('直榫')
+    await expect(card).toContainText('燕尾榫')
+    // 按燕尾筛选仍能找到该方案
+    await page.getByTestId('filter-kind').selectOption('dovetail')
+    await expect(page.getByTestId('plan-card')).toHaveCount(1)
+
+    // 打印页三段，燕尾段带齿号表
+    await page.getByTestId('plan-card').first().click()
+    await page.getByTestId('go-print').click()
+    await expect(page.getByTestId('print-page')).toBeVisible()
+    await expect(page.locator('[data-testid^="print-joint-"]')).toHaveCount(3)
+    await expect(page.getByTestId('print-tooth-table')).toBeVisible()
+  })
+
   test('知识卡页面展示 7 张经验卡', async ({ page }) => {
     await goto(page, '/#/library')
     await expect(page.getByTestId('library-page')).toBeVisible()

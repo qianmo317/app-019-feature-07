@@ -1,8 +1,8 @@
-// 方案列表：按「榫卯类型 + 木料厚度」筛选，支持导入
+// 方案列表：按「榫卯类型 + 木料厚度」筛选（多榫卯方案任一命中即匹配），支持导入
 import { useMemo, useState } from 'react'
 import type { Drawing, JointKind } from '../types'
 import { JOINT_KINDS, KIND_LABEL } from '../types'
-import { deletePlan, filterPlans, importJSON, upsertPlan } from '../store/plans'
+import { deletePlan, filterPlans, importJSON, upsertPlan, loadPlans, planKinds, planThicknesses } from '../store/plans'
 import { navigate } from '../router'
 import { fmtDrawing } from '../lib/format'
 
@@ -14,21 +14,12 @@ export function HomePage({ onImported }: { onImported: (p: Drawing) => void }) {
 
   const plans = useMemo(() => {
     void version
-    try {
-      return filterPlans(JSON.parse(localStorage.getItem('wjb.plans.v1') ?? '[]') as Drawing[], kind, thickness)
-    } catch {
-      return []
-    }
+    return filterPlans(loadPlans(), kind, thickness)
   }, [kind, thickness, version])
 
   const allThicknesses = useMemo(() => {
     void version
-    try {
-      const all = JSON.parse(localStorage.getItem('wjb.plans.v1') ?? '[]') as Drawing[]
-      return [...new Set(all.map((p) => p.joints[0]?.params.boardA.thickness))].filter((t): t is number => !!t).sort((a, b) => a - b)
-    } catch {
-      return []
-    }
+    return [...new Set(loadPlans().flatMap(planThicknesses))].sort((a, b) => a - b)
   }, [version])
 
   const onFile = (file: File) => {
@@ -104,27 +95,35 @@ export function HomePage({ onImported }: { onImported: (p: Drawing) => void }) {
       {error && <p className="error" role="alert">{error}</p>}
 
       <ul className="plan-list">
-        {plans.map((p) => (
-          <li key={p.id} className="plan-card" data-testid="plan-card">
-            <button className="plan-open" onClick={() => navigate(`/plan/${p.id}`)}>
-              <strong>{p.title}</strong>
-              <span className="plan-meta">
-                {KIND_LABEL[p.joints[0]?.kind ?? 'dovetail']} · A {fmtDrawing(p.joints[0]?.params.boardA.thickness ?? 0)}×
-                {fmtDrawing(p.joints[0]?.params.boardA.width ?? 0)}mm
-              </span>
-            </button>
-            <button
-              className="btn btn-danger btn-sm"
-              data-testid={`delete-${p.id}`}
-              onClick={() => {
-                deletePlan(p.id)
-                setVersion((v) => v + 1)
-              }}
-            >
-              删除
-            </button>
-          </li>
-        ))}
+        {plans.map((p) => {
+          const kinds = planKinds(p)
+          const first = p.joints[0]
+          return (
+            <li key={p.id} className="plan-card" data-testid="plan-card">
+              <button className="plan-open" onClick={() => navigate(`/plan/${p.id}`)}>
+                <strong>{p.title}</strong>
+                <span className="plan-meta" data-testid={`plan-kinds-${p.id}`}>
+                  {kinds.map((k) => KIND_LABEL[k]).join(' + ')}（{p.joints.length} 个榫卯）
+                </span>
+                {first && (
+                  <span className="plan-meta">
+                    A {fmtDrawing(first.params.boardA.thickness)}×{fmtDrawing(first.params.boardA.width)}mm
+                  </span>
+                )}
+              </button>
+              <button
+                className="btn btn-danger btn-sm"
+                data-testid={`delete-${p.id}`}
+                onClick={() => {
+                  deletePlan(p.id)
+                  setVersion((v) => v + 1)
+                }}
+              >
+                删除
+              </button>
+            </li>
+          )
+        })}
         {plans.length === 0 && <li className="empty">暂无方案，点「新建方案」开始</li>}
       </ul>
     </div>

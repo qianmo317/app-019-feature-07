@@ -1,5 +1,5 @@
 // 参数表单：新建与编辑器共用；键盘方向键微调 0.5mm（蓝图 §9）
-import type { JointKind, Params, Wood, Fit } from '../types'
+import type { JointKind, Params, Part, Wood, Fit } from '../types'
 import { JOINT_KINDS } from '../types'
 import { suggestTeeth } from '../lib/dovetail'
 
@@ -57,10 +57,19 @@ export function ParamForm({
   kind,
   params,
   onChange,
+  parts,
+  partAId,
+  partBId,
+  onSelectPart,
 }: {
   kind: JointKind
   params: Params
   onChange: (p: Params) => void
+  /** 传入零件清单时，顶部显示 A/B 作用零件选择（编辑器多榫卯场景） */
+  parts?: Part[]
+  partAId?: string | null
+  partBId?: string | null
+  onSelectPart?: (side: 'A' | 'B', partId: string | null) => void
 }) {
   const set = (patch: Partial<Params>) => onChange({ ...params, ...patch })
   const setA = (patch: Partial<Params['boardA']>) => set({ boardA: { ...params.boardA, ...patch } })
@@ -81,8 +90,35 @@ export function ParamForm({
       )
     : 0
 
+  const partPicker = (side: 'A' | 'B', value: string | null | undefined) => (
+    <label className="field">
+      <span className="field-label">作用零件 · 件{side}</span>
+      <select
+        data-testid={`part-${side.toLowerCase()}`}
+        value={value ?? ''}
+        onChange={(e) => onSelectPart?.(side, e.target.value || null)}
+      >
+        <option value="">（未指定）</option>
+        {parts!.map((p) => (
+          <option key={p.id} value={p.id}>
+            {p.name}（{p.thicknessMm}×{p.widthMm}mm）
+          </option>
+        ))}
+      </select>
+      {value && <span className="field-hint">厚度/宽度取自零件，改动任一处双向同步</span>}
+    </label>
+  )
+
   return (
     <div className="param-form">
+      {parts && onSelectPart && (
+        <fieldset>
+          <legend>作用零件</legend>
+          {partPicker('A', partAId)}
+          {partPicker('B', partBId)}
+        </fieldset>
+      )}
+
       <fieldset>
         <legend>件 A（齿板 / 榫舌板）</legend>
         <NumField
@@ -91,6 +127,7 @@ export function ParamForm({
           value={params.boardA.thickness}
           min={3}
           max={80}
+          hint={partAId ? '与所选零件同步' : undefined}
           onChange={(v) => setA({ thickness: v })}
         />
         <NumField
@@ -99,6 +136,7 @@ export function ParamForm({
           value={params.boardA.width}
           min={20}
           max={900}
+          hint={partAId ? '与所选零件同步' : undefined}
           onChange={(v) => setA({ width: v })}
         />
       </fieldset>
@@ -111,6 +149,7 @@ export function ParamForm({
           value={params.boardB.thickness}
           min={3}
           max={80}
+          hint={partBId ? '与所选零件同步' : undefined}
           onChange={(v) => setB({ thickness: v })}
         />
         <NumField
@@ -119,6 +158,7 @@ export function ParamForm({
           value={params.boardB.width}
           min={20}
           max={900}
+          hint={partBId ? '与所选零件同步' : undefined}
           onChange={(v) => setB({ width: v })}
         />
       </fieldset>

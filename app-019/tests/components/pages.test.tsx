@@ -1,12 +1,12 @@
 // 组件测试：参数联动 / 列表筛选 / 导入导出 / 键盘微调（前端点击对应的 bug 面）
 import { describe, it, expect, beforeEach } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { HomePage } from '../../src/pages/HomePage'
 import { NewPlanPage } from '../../src/pages/NewPlanPage'
 import { EditorPage } from '../../src/pages/EditorPage'
-import { makePlan, upsertPlan } from '../../src/store/plans'
-import type { JointKind, Params } from '../../src/types'
+import { makePlan, upsertPlan, addJoint, setJointPart } from '../../src/store/plans'
+import type { JointKind, Params, Drawing } from '../../src/types'
 
 beforeEach(() => {
   localStorage.clear()
@@ -167,5 +167,162 @@ describe('参数流（受控组件契约）', () => {
     // 200 + '4' → "2004" 超出上限 900 → 钳制到 900（表单防呆）
     expect(latest!.boardA.width).toBe(900)
     expect(latest!.boardA.thickness).toBe(18) // 其余字段保持
+  })
+})
+
+describe('多榫卯方案：左侧列表切换 + 零件挂接 + 右侧分组步骤', () => {
+  const stdParams: Params = {
+    boardA: { thickness: 18, width: 200 },
+    boardB: { thickness: 18, width: 200 },
+    wood: 'hardwood',
+    fit: 'standard',
+    kerfMm: 1.1,
+  }
+
+  function multiPlan(): Drawing {
+    let plan = makePlan('dovetail', stdParams)
+    const r = addJoint(plan, 'mortise-tenon')
+    plan = r.plan
+    plan = setJointPart(plan, r.jointId, 'A', plan.parts[0].id)
+    plan = setJointPart(plan, r.jointId, 'B', plan.parts[1].id)
+    upsertPlan(plan)
+    return plan
+  }
+
+  it('左侧列出全部榫卯，逐个切换时中间只画当前榫卯（燕尾齿表 ↔ 直榫无齿表）', async () => {
+    const user = userEvent.setup()
+    const plan = multiPlan()
+    render(<EditorPage id={plan.id} />)
+
+    const tabs = screen.getAllByTestId(/^joint-tab-/)
+    expect(tabs).toHaveLength(2)
+    // 右侧切割步骤按榫卯分成两组
+    expect(screen.getAllByTestId(/^cut-group-/)).toHaveLength(2)
+    // 当前默认第一个：燕尾 → 齿宽表存在
+    expect(screen.getByTestId('tooth-table')).toBeInTheDocument()
+
+    // 切到第二个（直榫）
+    await user.click(screen.getByTestId(`joint-tab-${plan.joints[1].id}`))
+    expect(screen.queryByTestId('tooth-table')).toBeNull()
+    expect(screen.getByTestId('tn-ratio')).toBeInTheDocument()
+    // 中间标题随之切换
+    expect(screen.getByTestId('current-joint-head')).toHaveTextContent('直榫')
+    // 切回燕尾
+    await user.click(screen.getByTestId(`joint-tab-${plan.joints[0].id}`))
+    expect(screen.getByTestId('tooth-table')).toBeInTheDocument()
+  })
+
+  it('在方案中追加第三个榫卯，自动切换为当前榫卯并进入未挂零件状态', async () => {
+    const user = userEvent.setup()
+    const plan = multiPlan()
+    render(<EditorPage id={plan.id} />)
+
+    await user.selectOptions(screen.getByTestId('add-joint-kind'), 'panel-glue')
+    await user.click(screen.getByTestId('add-joint'))
+
+    expect(screen.getAllByTestId(/^joint-tab-/)).toHaveLength(3)
+    expect(screen.getAllByTestId(/^cut-group-/)).toHaveLength(3)
+    // 新榫卯未挂零件：两个零件选择器都是空
+    expect(screen.getByTestId('part-a')).toHaveValue('')
+    expect(screen.getByTestId('part-b')).toHaveValue('')
+    // 选上现有零件
+    await user.selectOptions(screen.getByTestId('part-a'), plan.parts[0].id)
+    expect(screen.getByTestId('part-a')).toHaveValue(plan.parts[0].id)
+  })
+
+  it('删除当前榫卯后视图回退到剩余榫卯；删光后显示空状态', async () => {
+    const user = userEvent.setup()
+    const plan = multiPlan()
+    render(<EditorPage id={plan.id} />)
+
+    await user.click(screen.getByTestId(`joint-delete-${plan.joints[0].id}`))
+    expect(screen.getAllByTestId(/^joint-tab-/)).toHaveLength(1)
+    // 剩直榫 → 无齿表
+    expect(screen.queryByTestId('tooth-table')).toBeNull()
+
+    await user.click(screen.getByTestId(`joint-delete-${plan.joints[1].id}`))
+    expect(screen.getByTestId('no-joint')).toBeInTheDocument()
+  })
+
+  it('零件可增删改名、填长宽厚与数量；被引用零件删除按钮禁用，改厚同步到榫卯', async () => {
+    const user = userEvent.setup()
+    const plan = multiPlan()
+    render(<EditorPage id={plan.id} />)
+
+    // 初始两个零件，删除按钮均禁用
+    const delA = screen.getByTestId(`part-delete-${plan.parts[0].id}`) as HTMLButtonElement
+    expect(delA).toBeDisabled()
+
+    // 添加第三个零件（未被引用）→ 可删
+    await user.click(screen.getByTestId('add-part'))
+    const rows = screen.getAllByTestId(/^part-row-/)
+    expect(rows).toHaveLength(3)
+    const newId = rows[2].getAttribute('data-testid')!.replace('part-row-', '')
+    expect(screen.getByTestId(`part-delete-${newId}`)).toBeEnabled()
+
+    // 改名 + 数量
+    const nameInput = screen.getByTestId(`part-name-${newId}`)
+    await user.clear(nameInput)
+    await user.type(nameInput, '抽屉侧板')
+    const qty = screen.getByTestId(`part-qty-${newId}`)
+    fireEvent.change(qty, { target: { value: '4' } })
+    expect(nameInput).toHaveValue('抽屉侧板')
+    expect(qty).toHaveValue(4)
+
+    // 改第一个零件厚度 → 它被燕尾榫挂为 A：a-thickness 同步
+    fireEvent.change(screen.getByTestId(`part-thickness-${plan.parts[0].id}`), { target: { value: '25' } })
+    expect(screen.getByTestId('a-thickness')).toHaveValue(25)
+
+    // 删除未引用零件
+    await user.click(screen.getByTestId(`part-delete-${newId}`))
+    expect(screen.getAllByTestId(/^part-row-/)).toHaveLength(2)
+  })
+
+  it('列表页认出多榫卯方案：卡片展示全部类型，按第二种类型也能筛出', async () => {
+    const plan = multiPlan()
+    render(<HomePage onImported={() => undefined} />)
+    const card = screen.getByTestId('plan-card')
+    expect(card).toHaveTextContent('燕尾榫')
+    expect(card).toHaveTextContent('直榫')
+    expect(card).toHaveTextContent('2 个榫卯')
+    // 按直榫筛选：多榫卯方案命中
+    await userEvent.setup().selectOptions(screen.getByTestId('filter-kind'), 'mortise-tenon')
+    expect(screen.getAllByTestId('plan-card')).toHaveLength(1)
+    // 按搭接筛选：不命中
+    await userEvent.setup().selectOptions(screen.getByTestId('filter-kind'), 'lap')
+    expect(screen.queryAllByTestId('plan-card')).toHaveLength(0)
+    void plan
+  })
+})
+
+describe('多榫卯打印页：按榫卯逐段出图，燕尾段带齿号表与切割步骤', () => {
+  it('打印页为每个榫卯输出独立段落', async () => {
+    const { PrintPage } = await import('../../src/pages/EditorPage')
+    let plan = makePlan('dovetail', {
+      ...{
+        boardA: { thickness: 18, width: 200 },
+        boardB: { thickness: 18, width: 200 },
+        wood: 'hardwood' as const,
+        fit: 'standard' as const,
+        kerfMm: 1.1,
+      },
+      dovetail: { angleRatio: 8 },
+    })
+    plan = addJoint(plan, 'mortise-tenon').plan
+    upsertPlan(plan)
+    render(<PrintPage id={plan.id} />)
+
+    const sections = plan.joints.map((j) => screen.getByTestId(`print-joint-${j.id}`))
+    expect(sections).toHaveLength(2)
+    // 第一段燕尾：齿号表 + 三视图
+    expect(within(sections[0]).getByTestId('print-tooth-table')).toBeInTheDocument()
+    expect(sections[0].querySelector('[data-view="front"]')).toBeTruthy()
+    // 第二段直榫：无齿表
+    expect(within(sections[1]).queryByTestId('print-tooth-table')).toBeNull()
+    // 每段都带切割步骤
+    expect(screen.getAllByTestId('cut-steps-body')).toHaveLength(2)
+    // 校验尺与模板页仍在
+    expect(screen.getByTestId('check-ruler')).toBeInTheDocument()
+    expect(screen.getByTestId('print-template')).toHaveTextContent('1:1 模板页')
   })
 })

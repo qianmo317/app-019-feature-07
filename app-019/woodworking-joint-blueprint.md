@@ -33,7 +33,7 @@
 - **直榫三参数**：榫厚/料厚比（0.2~0.5，默认 1/3）、榫长/孔板厚比（0.4~1，< 1 即盲榫）、腹边距。
 - **半隐燕尾**：齿深 = 0.75 × 板厚，正视图用 `hidden` 虚线画出不穿透展示面的槽底。
 - **内建性能读数**：编辑器把「参数改动 → 计算 + 出图」的耗时直接显示在页面上（`data-testid="recalc-ms"`），验收线 100ms。
-- **两类扩展尚未接 UI**（数据模型已就位，见 §11「已知实现边界」）：按 1:2 / 1:5 缩放出图、单方案挂多个榫卯。
+- **扩展：单方案多榫卯已接通界面**（1:2 / 1:5 缩放出图仍只有模型没有界面）：一个方案可挂多个榫卯，每个榫卯通过 `partAId/partBId` 挂到两个零件上；编辑器左侧列出全部榫卯并逐个切换、中间只画当前榫卯、右侧切割步骤按榫卯分组；方案列表/筛选按全部榫卯命中；打印页按榫卯逐段出图并各自带齿号表与切割步骤；旧版数据（`Part` 为 w/h、榫卯无 id/partAId）读取与导入时自动迁移。
 
 ## 6. 页面结构
 ```
@@ -54,8 +54,8 @@ interface Params { boardA: Board; boardB: Board; wood: Wood; fit: Fit;   // A = 
                    dovetail?: { angleRatio: 6|7|8; teeth?: number };
                    tenon?: { thicknessRatio: number; lengthRatio: number; offsetFromFace: number };
                    kerfMm: number }
-interface Joint  { kind: JointKind; params: Params; notes: string[] }
-interface Part   { id: string; name: string; w: number; h: number; qty: number; jointIds: string[] }
+interface Joint  { id: string; kind: JointKind; params: Params; partAId: string|null; partBId: string|null; notes: string[] }
+interface Part   { id: string; name: string; lengthMm: number; widthMm: number; thicknessMm: number; qty: number; jointIds: string[] }
 type Scale = '1:1'|'1:2'|'1:5'
 interface Drawing { id: string; title: string; parts: Part[]; joints: Joint[]; scale: Scale; updatedAt: number }
 type FitTable = Record<Wood, Record<Fit, number>>                        // 榫厚修正量 mm
@@ -119,7 +119,7 @@ interface ViewModel { id: 'front'|'top'|'side'; title: string; contentW: number;
 2. **锯路补偿只覆盖两种类型**：`computeLap` / `computeDowel` / `computePanel` 内部以 `void input.kerf`（`src/lib/joints.ts:24,58,92`）显式丢弃 kerf，对应的三视图也没有 `saw` 线；README 笼统写「图纸同时标注理论线与锯切线」，实际只有燕尾与直榫如此。
 3. **「腹边距 0=居中」与实际不符**：`ParamForm.tsx:215` 标签写「0=居中」，但 `setTn` 的默认值把 `offsetFromFace` 写成 `0`（`ParamForm.tsx:71`），`calc.ts:45` 用 `?? null` 判断、`tenon.ts:52` 只在 `null` 时居中——一旦改动任一「直榫参数」字段，腹边距就变成 0（榫头贴腹板面）而非居中。
 4. **榫眼 +1mm 的解释与代码/知识卡不同**：README 写「穿透深度 = 榫孔板厚 + 1（露出部分便于修平）」，代码注释与知识卡都写的是眼底留量防（胶）顶底；且加 1mm 的是 `mortiseDepth`，`tenonLength` 不加（`tenon.ts:50-51`）。
-5. **`Scale` 与多榫卯只有模型没有界面**：`Drawing.scale` 恒为 `'1:1'`（`store/plans.ts:95`），`Part.jointIds` 恒为空数组（`plans.ts:91-92`）；编辑器只渲染 `joints[0]`（`EditorPage.tsx:40`），方案筛选同样只看 `joints[0]`（`plans.ts:42`），打印视图按实际尺寸出（`EditorPage.tsx:276`），因此 1:2 / 1:5 出图与单方案多榫卯均未实现。
+5. **`Scale` 仍只有模型没有界面；多榫卯已实现**：`Drawing.scale` 恒为 `'1:1'`（`store/plans.ts`），1:2 / 1:5 出图未接 UI。多榫卯此前的三处限制（`Part.jointIds` 恒空、编辑器只渲染 `joints[0]`、筛选只看 `joints[0]`）已消除：`Joint` 增加 `id/partAId/partBId`，`Part` 改为 `lengthMm/widthMm/thicknessMm`（旧 w/h 自动迁移），零件截面尺寸与榫卯参数双向同步，编辑器/列表/打印均遍历全部榫卯（见 §5）。
 6. **图内注释文字与线型不完全对得上**：`views.ts:120` 的提示写「细线=理论线　虚线=锯切线」，而正视图的理论轮廓用的是 `cut`（0.5 实线），`thin`（0.25）只用在俯视图大面划线上。
 7. **导入校验偏松**：`importJSON` 只校验 `id/title/joints/joints[0].kind/params.boardA`（`plans.ts:58-64`），缺 `boardB`、`wood`、`fit`、`kerfMm` 的 JSON 会被接受，随后计算可能得到 `NaN` 尺寸而不是报错。
 8. **`Joint.notes` 未被使用**：`makePlan` 的第 3 个参数默认空数组，两个调用点都不传，编辑器也不渲染。

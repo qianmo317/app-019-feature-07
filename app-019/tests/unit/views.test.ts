@@ -9,6 +9,7 @@ const JOINTS: JointKind[] = ['dovetail', 'half-blind-dovetail', 'mortise-tenon',
 
 function makeJoint(kind: JointKind): Joint {
   return {
+    id: `j-${kind}`,
     kind,
     params: {
       boardA: { thickness: 18, width: 200 },
@@ -19,6 +20,8 @@ function makeJoint(kind: JointKind): Joint {
       tenon: { thicknessRatio: 1 / 3, lengthRatio: 1, offsetFromFace: 0 },
       kerfMm: 1.1,
     },
+    partAId: null,
+    partBId: null,
     notes: [],
   }
 }
